@@ -1,6 +1,6 @@
 =head1 TITLE
 
-  Data::FastPack::JPacker - backend class for packing fastpack data files into web loadable JPack
+Data::FastPack::JPacker - backend class for packing fastpack data files into web loadable JPack
 
 =head1 SYNOPSIS
 
@@ -21,6 +21,8 @@
 =cut
 
 package Data::FastPack::JPacker;
+our $VERSION="v0.1.0";
+
 # Module for encoding Fastpack time series as JPACK files
 # Also splits Fastpack files into smaller ones either on message count or byte limit
 # 
@@ -58,10 +60,10 @@ use constant::more ("byte_limit_="."0", qw<
 	in_buffer_
 	out_buffer_
 	input_done_flag_
-	jpack_flag_
 	file_count_
 	first_
 	>);
+
 #use constant KEY_COUNT=first_-byte_limit_+1;
 
 sub new{
@@ -86,12 +88,13 @@ sub init {
 	$self->[jpack_options_]=$options{jpack_options}//{};
 	$self->[message_limit_]=$options{message_limit};
 	$self->[byte_limit_]=$options{byte_limit};
-	$self->[jpack_flag_]=1;
+  #$self->[jpack_flag_]=1;
 	$self->[first_]=1;
 	$self->[in_buffer_]="";
 	$self->[out_buffer_]="";
 	$self->[read_size_]=$options{read_size}//4096*8;
 	$self->[write_threshold_]=$options{write_size}//4096*8;
+  $self->[jpack_]=Data::JPack->new(%options);;
 
 
 
@@ -104,7 +107,7 @@ sub init {
 sub close_output_file {
 	my $self=shift;
 	if($self->[out_fh_]){
-		$self->[out_buffer_].=$self->[jpack_]->encode_footer if $self->[jpack_flag_];
+		$self->[out_buffer_].=$self->[jpack_]->encode_footer if $self->[jpack_];
 		syswrite $self->[out_fh_], $self->[out_buffer_];
 		close $self->[out_fh_];
 		$self->[out_fh_]=undef;
@@ -116,15 +119,24 @@ sub close_output_file {
 sub open_output_file {
 	my $self =shift;
 	my $dir= shift;
-  # Format filename with up to 32 characters of hex (16 bytes/128 bits) That is
-  # way more files than we currently can process, but does make it easy view
-  # the file listing as the names are all the same length. It also makes it
-  # very easy to load data as the browser simply keeps attempting to read
-  # incrementally named files
-	my $name=sprintf "$dir/%032x.jpack", $self->[file_count_];
+  my $name=$self->[jpack_]->next_file_name;
+  my $dir=dirname $name;
+  make_path $dir;
 	say STDERR "Opening output file: $name";
 	open $self->[out_fh_], ">", $name;
 	$name;
+
+  #################################################################################
+  # # Format filename with up to 32 characters of hex (16 bytes/128 bits) That is #
+  # # way more files than we currently can process, but does make it easy view    #
+  # # the file listing as the names are all the same length. It also makes it     #
+  # # very easy to load data as the browser simply keeps attempting to read       #
+  # # incrementally named files                                                   #
+  #       my $name=sprintf "$dir/%032x.jpack", $self->[file_count_];              #
+  #       say STDERR "Opening output file: $name";                                #
+  #       open $self->[out_fh_], ">", $name;                                      #
+  #       $name;                                                                  #
+  #################################################################################
 }
 
 sub stats {
@@ -177,48 +189,57 @@ sub pack_files {
 	my $now=time;
   my $previous_dst;
 
-	while(){
+  # Main State Machine
+  #
+  while(){
+    #say STDERR "main loop";
+    #sleep 1;
     #say "";
-		$now=time;
-		if(($now-$start)>1){
-			$start=$now;
-			$self->stats;
-		}
-    
-		#Parse input file and store messages in messages 
-		if($self->[ifh_]){
+    $now=time;
+    if(($now-$start)>1){
+      $start=$now;
+      $self->stats;
+    }
+
+    # Parse already open input file and store messages in messages 
+    #
+    if($self->[ifh_]){
       #say "have input file.. will read";
-			my $read=sysread $self->[ifh_], $self->[in_buffer_], $self->[read_size_], length $self->[in_buffer_];
-			if($read){
-				#data present
+      my $read=sysread $self->[ifh_], $self->[in_buffer_], $self->[read_size_], length $self->[in_buffer_];
+      if($read){
+        #data present
         decode_message $self->[in_buffer_], $self->[messages_];
         #push $self->[messages_]->@*, $message while( $message=next_unparsed_message $self->[in_buffer_])
 
-			}
-			elsif($read==0){
+      }
+      elsif($read==0){
         #say "END OF INPUT FILE: setting undef";
-				$self->[ifh_]=undef;
-			}
-		}
+        $self->[ifh_]=undef;
+      }
+    }
 
-    # Need to change input, but flush current messages to output first
+    # Need to open/change input, but flush current messages to output first
+    #
     elsif($self->[out_buffer_] or $self->[messages_]->@*){
       #say "FLUSHING";
       #Flush
     }
 
-		#Open a next input. No messages buffered at this point to safe to close/open outputfile
-		else {
+    # Open next input (if present). No messages buffered at this point to safe to close/open outputfile
+    #
+    else {
       #say "No buffer,  messages or open input file.. open next";
-			#load new file
-			if(@src){
+      #load new file
+      if(@src){
         #say STDERR "Opening input file: $src[0]";
         $previous_dst= $current_dst;
-				$current_src=shift @src;
-				$current_dst=shift @dst;
+        $current_src=shift @src;
+        $current_dst=shift @dst;
+        $self->[jpack_]->set_prefix($current_dst);
+
 
         if($current_src eq "-"){
-          
+
           say STDERR "Using standard input";
           $self->[ifh_]=\*STDIN;
         }
@@ -227,99 +248,104 @@ sub pack_files {
           open  $self->[ifh_], "<", $current_src; 
         }
 
+        # Prefix has changed. So close files
         if(defined($previous_dst) and ($current_dst ne $previous_dst)){
           $self->close_output_file;
           $self->[file_count_]=0;
         }
 
-        # Calculate the current file count
-        #
-        my $p="$self->[html_root_]/$current_dst";
-        my @list= map {hex} sort grep {length == 32 } map {s/\.jpack//; basename $_ } <$p/*.jpack>;
-        say "found list: @list";
-        $self->[file_count_]=((pop(@list)//0)+1);
-        say "file count $self->[file_count_]";
+        ###############################################################################################
+        # # Calculate the current file count                                                          #
+        # #                                                                                           #
+        # my $p="$self->[html_root_]/$current_dst";                                                   #
+        # my @list= map {hex} sort grep {length == 32 } map {s/\.jpack//; basename $_ } <$p/*.jpack>; #
+        # say "found list: @list";                                                                    #
+        # $self->[file_count_]=((pop(@list)//0)+1);                                                   #
+        # say "file count $self->[file_count_]";                                                      #
+        #                                                                                             #
+        # #say "Files at $current_dst: @list";                                                        #
+        # say STDERR "CURRENT dst: $current_dst";                                                     #
+        # #redo;  #need to read data                                                                  #
+        ###############################################################################################
 
-        #say "Files at $current_dst: @list";
-        say STDERR "CURRENT dst: $current_dst";
-        #redo;  #need to read data
         $self->[first_]=1; # Reset the first message from file flag
-			}
-			else{
-				#no more files or data to read
-				$self->[input_done_flag_]=1;
-			}
-		}
-	
+      }
+      else{
+        #no more files or data to read
+        $self->[input_done_flag_]=1;
+      }
+    }
 
-		#Process messages in buffer
-		while($self->[messages_]->@*){
 
-			$message= shift $self->[messages_]->@*;
+    # Process messages in buffer.
+    #
+    while($self->[messages_]->@*){
+      #say STDERR "while messages...";
       #sleep 1;
 
-			#Existing output file or size/count boundary reached
-			if(
-				!$self->[first_]
-					and (!$self->[byte_limit_]||($self->[byte_size_]+$message->[FP_MSG_TOTAL_LEN])< $self->[byte_limit_])
-					and (!$self->[message_limit_]|| ($self->[message_count_]<= $self->[message_limit_]))
-			){
+      $message= shift $self->[messages_]->@*;
+      #sleep 1;
+
+      # Existing output file or size/count boundary or within limits
+      if(
+        !$self->[first_]
+          and (!$self->[byte_limit_]||($self->[byte_size_]+$message->[FP_MSG_TOTAL_LEN])< $self->[byte_limit_])
+          and (!$self->[message_limit_]|| ($self->[message_count_]<= $self->[message_limit_]))
+      ){
 
 
-				#Serialse the messages and jpack encode
-				if($self->[jpack_flag_]){
-					my $buf="";
+        #Serialse the messages and jpack encode
+        if($self->[jpack_]){
+          my $buf="";
           encode_message $buf, [$message];
           #serialize_messages $buf, $message;
-					my $data=$self->[jpack_]->encode_data($buf);
-					#say $data if $data;
-					$self->[out_buffer_].=$data;
-				}
+          my $data=$self->[jpack_]->encode_data($buf);
+          #say $data if $data;
+          $self->[out_buffer_].=$data;
+        }
 
-				#Just serialize...
-				else {
+        #Just serialize...
+        else {
           encode_message $self->[out_buffer_], [$message];
           #serialize_messages $self->[out_buffer_], $message;
 
-				}
-				$self->[message_count_]++;
-				$self->[byte_size_]+=$message->[FP_MSG_TOTAL_LEN];
-			}
+        }
+        $self->[message_count_]++;
+        $self->[byte_size_]+=$message->[FP_MSG_TOTAL_LEN];
+      }
 
-			#No current output file of size/count boudary reached, or first message from file
-			else {
-				#close and open a file
-				$self->close_output_file;
+
+      #  New file or limits reached
+      #
+      else {
+        #close and open a file
+        $self->close_output_file;
         #$self->[file_count_]++;
-        
-				my $out;
-				$out=$self->[html_root_]."/$current_dst";
-				my $dirname=$out;#dirname $out;
-				my $basename=basename $out;
 
-        #say STDERR "Making dir $dirname";
-				make_path $dirname;
-				my $f=$self->open_output_file($self->[html_root_]."/".$current_dst);
-				#remove the abs html root
-				$f=rel2abs( $f )=~s/^$self->[html_root_]\///r;
-				push @outputs, $f;
-				if($self->[jpack_flag_]){
-					#create any dirs relative to container file
+        #############################################
+        # my $out;                                  #
+        # $out=$self->[html_root_]."/$current_dst"; #
+        # my $dirname=$out;#dirname $out;           #
+        # my $basename=basename $out;               #
+        #                                           #
+        # say STDERR "===================";         #
+        # say STDERR "Making dir $dirname";         #
+        # say STDERR "===================";         #
+        #                                           #
+        # make_path $dirname;                       #
+        # sleep 2;                                  #
+        #############################################
 
-					$self->[jpack_options_]{jpack_seq}=$self->[file_count_];
-          #$self->[jpack_options_]{jpack_path}=$f;#$current_dst;
-					$self->[jpack_options_]{jpack_tag}=$basename;
+        my $f=$self->open_output_file($self->[html_root_]."/".$current_dst);
 
-					$self->[jpack_]=Data::JPack->new(
-						$self->[jpack_options_]->%*
-
-					);
-				}
+        #remove the abs html root
+        $f=rel2abs( $f )=~s/^$self->[html_root_]\///r;
+        push @outputs, $f;
 
 
-        if($self->[jpack_flag_]){
+        if($self->[jpack_]){
           # Encode into jpack format, after writing header
-				  $self->[out_buffer_]=$self->[jpack_]->encode_header;
+          $self->[out_buffer_]=$self->[jpack_]->encode_header;
 
           my $buf="";
           encode_message $buf, [$message];
@@ -331,34 +357,35 @@ sub pack_files {
           encode_message $self->[out_buffer_], [$message];
         }
 
-				$self->[message_count_]=1;
-				$self->[byte_size_]=$message->[FP_MSG_TOTAL_LEN];
-				$self->[first_]=undef;
-			}
+        $self->[message_count_]=1;
+        $self->[byte_size_]=$message->[FP_MSG_TOTAL_LEN];
+        $self->[first_]=undef;
+      }
 
-			# write output file when the output buffer is full or input file is done.
-			last if(
-				(!$self->[ifh_] or length($self->[out_buffer_])>=$self->[write_threshold_])
-			);
+      # write output file when the output buffer is full or input file is done.
+      last if(
+        (!$self->[ifh_] or length($self->[out_buffer_])>=$self->[write_threshold_])
+      );
     }
 
     my $amount=length $self->[out_buffer_];
     while($amount){
-      #say "WRITE";
+      #say STDERR "WRITE";
+      #sleep 1;
       my $write=syswrite $self->[out_fh_], $self->[out_buffer_];
       substr $self->[out_buffer_], 0 ,$write,"";
       $amount-=$write;
     }
-		
-      
+
+
     if(!$self->[ifh_] and !$self->[messages_]->@*){
       #say "INPUT FINISHED, and messages flushed";
       $self->close_output_file;
     }
 
 
-		last if $self->[input_done_flag_] and !$self->[messages_]->@*;
-	}
+    last if $self->[input_done_flag_] and !$self->[messages_]->@*;
+  }
 
         ######################################################################
         # #write any remaining data in the buffer                            #

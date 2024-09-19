@@ -71,6 +71,7 @@ use warnings;
 
 use feature qw<say state >;
 
+our $VERSION="v0.1.0";
 
 use Getopt::Long;
 
@@ -110,11 +111,11 @@ if(delete $options{compress}){
 }
 
 
-
+say STDERR "fastpack-split version ".$VERSION;
 # Processing Output/group arguments.
 # An input can be directed to go to an output group.
 #
-my $output=$options{group};#"default";     # is a path
+my $output=$options{prefix};#"default";     # is a path
 my $inputs=[];  # is a list of paths
 my $item;
 my @set;
