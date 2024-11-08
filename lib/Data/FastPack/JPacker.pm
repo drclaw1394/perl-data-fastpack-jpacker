@@ -1,6 +1,6 @@
 =head1 TITLE
 
-Data::FastPack::JPacker - backend class for packing fastpack data files into web loadable JPack
+Data::FastPack::JPacker - backend class for packing FastPack data files into web loadable JPack
 
 =head1 SYNOPSIS
 
@@ -16,8 +16,12 @@ Data::FastPack::JPacker - backend class for packing fastpack data files into web
 
 =head1 DESCRIPTION
 
+Backend to the fastpack-split program. Splits input files or standard input
+(assumed FastPack messages/frames) in to output files encoded in JPack. A
+sequence of files may be created representing a single input file. The
+resulting jpack files are loadable via JPack in the browser
 
-
+=head1 API
 =cut
 
 package Data::FastPack::JPacker;
@@ -65,6 +69,11 @@ use constant::more ("byte_limit_="."0", qw<
 	>);
 
 #use constant KEY_COUNT=first_-byte_limit_+1;
+=head2 new
+
+Create a new packer. No arguments
+
+=cut
 
 sub new{
 	my $package=shift//__PACKAGE__;
@@ -74,6 +83,42 @@ sub new{
 	$self->init(@_);
 }
 
+=head2 init
+
+  $jpacker->init( OPTIONS )
+
+Initializes a packer with the options (key value pairs) given
+
+The options to this are 
+
+=over
+
+=item html_container
+
+The path to the root dir or 'index.html' file in the root of the html
+directory. Data will be stored relative to the container
+
+=item jpack_options
+
+Options specific to the JPack encoding. Please refere to L<Data::JPack> for
+more details
+
+=item message_limit
+
+Maximum number of FastPack messages to store in an output file
+
+
+=item read_size
+
+Size of read buffer in bytes. Default is 4096*8
+
+=item write_size
+
+Size of buffer to accumulate output before writing out to disk. Default is 4096*8
+
+=back
+
+=cut
 #like new but reuse the object
 sub init {
 	my $self=shift;
@@ -104,6 +149,7 @@ sub init {
 }
 
 
+# INTERNAL API
 sub close_output_file {
 	my $self=shift;
 	if($self->[out_fh_]){
@@ -116,6 +162,7 @@ sub close_output_file {
 	}
 }
 
+# INTERNAL API
 sub open_output_file {
 	my $self =shift;
 	my $dir= shift;
@@ -139,6 +186,7 @@ sub open_output_file {
   #################################################################################
 }
 
+# INTERAL API
 sub stats {
 	my ($self)=@_;
 	printf STDERR  "Message Count: %0d\n", $self->[message_count_];
@@ -398,3 +446,29 @@ sub pack_files {
 	@outputs
 }
 1;
+
+
+=head1 AUTHOR
+
+Ruben Westerberg, E<lt>drclaw@mac.com<gt>
+
+=head1 REPOSITORTY and BUGS
+
+Please report any bugs via git hub: L<http://github.com/drclaw1394/perl-data-fastpack-jpacker>
+
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2023 by Ruben Westerberg
+
+This library is free software; you can redistribute it and/or modify it under
+the same terms as Perl or the MIT license.
+
+=head1 DISCLAIMER OF WARRANTIES
+
+THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE.
+
+=cut
+

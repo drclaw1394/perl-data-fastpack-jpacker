@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/Data-FastPack-JPacker.t
+lib/Data/FastPack/JPacker.pm
