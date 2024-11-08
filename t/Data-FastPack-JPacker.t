@@ -3,6 +3,7 @@ use warnings;
 
 use Data::FastPack qw<encode_fastpack decode_fastpack>;
 use Data::FastPack::Meta;
+use File::Path qw<remove_tree>;
 
 use Test::More;
 
@@ -40,4 +41,9 @@ my $prefix="some_group";
 $jpacker->pack_files($input, $prefix);
 
 done_testing();
+
+# Clean up
+#
+unlink $input;
+remove_tree $prefix;
 
