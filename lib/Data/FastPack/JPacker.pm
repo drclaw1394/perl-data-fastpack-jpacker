@@ -454,7 +454,7 @@ Ruben Westerberg, E<lt>drclaw@mac.com<gt>
 
 =head1 REPOSITORTY and BUGS
 
-Please report any bugs via git hub: L<http://github.com/drclaw1394/perl-data-fastpack-jpacker>
+Please report any bugs via git hub: L<https://github.com/drclaw1394/perl-data-fastpack-jpacker>
 
 
 =head1 COPYRIGHT AND LICENSE
