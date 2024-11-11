@@ -371,19 +371,6 @@ sub pack_files {
         $self->close_output_file;
         #$self->[file_count_]++;
 
-        #############################################
-        # my $out;                                  #
-        # $out=$self->[html_root_]."/$current_dst"; #
-        # my $dirname=$out;#dirname $out;           #
-        # my $basename=basename $out;               #
-        #                                           #
-        # say STDERR "===================";         #
-        # say STDERR "Making dir $dirname";         #
-        # say STDERR "===================";         #
-        #                                           #
-        # make_path $dirname;                       #
-        # sleep 2;                                  #
-        #############################################
 
         my $f=$self->open_output_file($self->[html_root_]."/".$current_dst);
 
@@ -439,13 +426,6 @@ sub pack_files {
     last if $self->[input_done_flag_] and !$self->[messages_]->@*;
   }
 
-        ######################################################################
-        # #write any remaining data in the buffer                            #
-        # while($self->[out_buffer_]){                                       #
-        #         my $write=syswrite $self->[out_fh_], $self->[out_buffer_]; #
-        #         substr $self->[out_buffer_],0 ,$write,"";                  #
-        # }                                                                  #
-        ######################################################################
 	$self->close_output_file;
 	@outputs
 }
