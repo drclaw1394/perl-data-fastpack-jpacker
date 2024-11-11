@@ -40,10 +40,11 @@ my $jpacker=Data::FastPack::JPacker->new(html_continer=>$html_container, message
 my $prefix="some_group";
 $jpacker->pack_files($input, $prefix);
 
-done_testing();
-
 # Clean up
 #
 unlink $input;
 remove_tree $prefix;
+
+done_testing();
+
 

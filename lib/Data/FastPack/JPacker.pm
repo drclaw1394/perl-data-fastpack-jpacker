@@ -167,7 +167,8 @@ sub open_output_file {
 	my $self =shift;
 	my $dir= shift;
   my $name=$self->[jpack_]->next_file_name;
-  my $dir=dirname $name;
+
+  $dir=dirname $name;
   make_path $dir;
 	say STDERR "Opening output file: $name";
 	open $self->[out_fh_], ">", $name;
@@ -387,7 +388,10 @@ sub pack_files {
         my $f=$self->open_output_file($self->[html_root_]."/".$current_dst);
 
         #remove the abs html root
-        $f=rel2abs( $f )=~s/^$self->[html_root_]\///r;
+        #$f=rel2abs( $f )=~s/^$self->[html_root_]\///r;
+        $f=rel2abs($f);
+        $f=abs2rel($f, $self->[html_root_]);
+
         push @outputs, $f;
 
 
